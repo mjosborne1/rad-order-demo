@@ -1,0 +1,18 @@
+# SNOMED CT Radiology Procedure Deconstructor - Configuration
+
+# FHIR Terminology Server base URL
+terminology_server: "https://r4.ontoserver.csiro.au/fhir"
+
+# FHIR ValueSet URL (ECL) containing precoordinated radiology procedures.
+# Default: imaging procedures that have both a body-site and a contrast qualifier.
+# Replace with your own ValueSet URL if you have one (e.g. http://example.org/fhir/ValueSet/rad-procedures)
+#valueset_url: "http://snomed.info/sct?fhir_vs=ecl/<363679005:405813007=*,424361007=*"
+valueset_url: https://ranzcr.com/fhir/ValueSet/radiology-referral-1
+# Concept map cache — built on first run, reloaded on subsequent starts.
+# Delete this file (or run with --refresh) to force a rebuild.
+cache_file: "concept_map_cache.json"
+cache_enabled: true
+
+# Flask settings
+flask_debug: true
+flask_port: 5000

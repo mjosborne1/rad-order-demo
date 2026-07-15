@@ -1,0 +1,7 @@
+flask>=2.3,<4
+pyyaml>=6.0
+requests>=2.28
+fhirpathpy>=0.1.0
+fhirclient>=4.1
+pandas>=1.5
+numpy>=1.23

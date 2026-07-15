@@ -1,0 +1,13 @@
+# Focus radiology procedures used by procedure_mapper() to identify the base modality.
+# Format: SNOMED_code,description
+# procedure_mapper() walks the ancestor hierarchy of each precoordinated code
+# and returns the first ancestor that appears in this list.
+# Extend or replace these codes to match the procedures in your valueset.
+168537006,Plain radiography
+77477000,Computerized axial tomography
+71651007,Magnetic resonance imaging
+16310003,Diagnostic ultrasonography
+44491008,Fluoroscopy
+35385009,Positron emission tomography scan
+258113007,Bone scan
+363680008,Radiographic imaging procedure
