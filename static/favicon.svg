@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Radiograph film -->
+  <rect x="3" y="2.5" width="26" height="27" rx="4" fill="#0d3b66"/>
+  <rect x="3" y="2.5" width="26" height="27" rx="4" fill="none" stroke="#0a2c4d" stroke-width="1"/>
+  <!-- Faint rib arcs, evoking a chest x-ray -->
+  <g fill="none" stroke="#9ec5e8" stroke-width="1" opacity="0.45" stroke-linecap="round">
+    <path d="M9 9 Q16 13 23 9"/>
+    <path d="M9 15 Q16 19 23 15"/>
+    <path d="M9 21 Q16 25 23 21"/>
+  </g>
+  <!-- Bone (femur-like), the clear focal element -->
+  <g transform="rotate(-45 16 16)" fill="#eef6ff">
+    <rect x="13" y="9.5" width="6" height="13" rx="2.4"/>
+    <circle cx="13" cy="9.5" r="3.1"/>
+    <circle cx="19" cy="9.5" r="3.1"/>
+    <circle cx="13" cy="22.5" r="3.1"/>
+    <circle cx="19" cy="22.5" r="3.1"/>
+  </g>
+</svg>

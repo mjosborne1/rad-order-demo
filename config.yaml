@@ -1,16 +1,39 @@
 # SNOMED CT Radiology Procedure Deconstructor - Configuration
 
-# FHIR Terminology Server base URL
-terminology_server: "https://r4.ontoserver.csiro.au/fhir"
+# Terminology servers available to build/query concept maps against.
+terminology_servers:
+  - id: tx-csiro
+    label: "tx.ontoserver.csiro.au"
+    url: "https://tx.ontoserver.csiro.au/fhir"
+  - id: r4-csiro
+    label: "r4.ontoserver.csiro.au"
+    url: "https://r4.ontoserver.csiro.au/fhir"
+  - id: tx-dev-hl7-au
+    label: "tx.dev.hl7.org.au"
+    url: "https://tx.dev.hl7.org.au/fhir"
+  - id: tx-hl7-au
+    label: "tx.hl7.org.au"
+    url: "https://tx.hl7.org.au/fhir"
+  - id: localhost
+    label: "localhost:8080 (local dev)"
+    url: "http://localhost:8080/fhir"
 
-# FHIR ValueSet URL (ECL) containing precoordinated radiology procedures.
-# Default: imaging procedures that have both a body-site and a contrast qualifier.
-# Replace with your own ValueSet URL if you have one (e.g. http://example.org/fhir/ValueSet/rad-procedures)
-#valueset_url: "http://snomed.info/sct?fhir_vs=ecl/<363679005:405813007=*,424361007=*"
-valueset_url: https://ranzcr.com/fhir/ValueSet/radiology-referral-1
-# Concept map cache — built on first run, reloaded on subsequent starts.
-# Delete this file (or run with --refresh) to force a rebuild.
-cache_file: "concept_map_cache.json"
+# FHIR ValueSets containing precoordinated radiology procedures, selectable in the UI.
+valuesets:
+  - id: ranzcr
+    label: "RANZCR Radiology Referral"
+    url: "https://ranzcr.com/fhir/ValueSet/radiology-referral-1"
+  - id: au-imaging
+    label: "AU Imaging Procedure"
+    url: "https://healthterminologies.gov.au/fhir/ValueSet/imaging-procedure-1"
+
+# Default (valueset, terminology server) combo selected on startup and by --refresh.
+default_valueset: ranzcr
+default_terminology_server: r4-csiro
+
+# Concept map cache — one file per (valueset, terminology server) combo, under
+# cache_dir. Built on first refresh, reloaded on subsequent starts.
+cache_dir: "cache"
 cache_enabled: true
 
 # Flask settings

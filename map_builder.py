@@ -18,6 +18,7 @@ import pandas as pd
 from fhirpathpy import evaluate
 
 import fetcher
+from config import find_valueset
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,13 @@ def decompose_concept(
     if pre_co in bilateral_procs:
         lat = "51440002"
 
-    # Without-contrast override (explicit "without" wins over absence of qualifier)
-    if pre_co in procs_without_contrast:
+    # Without-contrast: an explicit term match always wins. Otherwise, if no contrast
+    # attribute was found at all, default to "without contrast" — SNOMED commonly models
+    # the plain/unqualified concept (no "Using substance" attribute) as the without-contrast
+    # variant, adding an explicit "with contrast" sibling only when contrast is used (e.g.
+    # 241544002 "CT of axilla" has no contrast property, vs. its sibling 709766004 "CT of
+    # axilla with contrast"). Leaving contrast unset here would wrongly exclude the concept.
+    if pre_co in procs_without_contrast or not contrast:
         contrast = "373067005"
 
     # Map to focus/modality procedure
@@ -146,12 +152,12 @@ def decompose_concept(
         logger.debug("Skipping %s — no focus procedure ancestor found", pre_co)
         return None
 
-    # Exclude if any axis is still unresolved
-    if not site or not lat or not contrast:
-        logger.debug(
-            "Skipping %s — unresolved axis (site=%s lat=%s contrast=%s)",
-            pre_co, site, lat, contrast,
-        )
+    # Exclude only if the body site is unresolved. Laterality may legitimately be
+    # absent for midline / non-lateralised procedures (e.g. CT of brain, OPG of
+    # jaw); those are kept with laterality recorded as "Not applicable" rather than
+    # dropped. Contrast is always populated (defaulted to "without" above).
+    if not site:
+        logger.debug("Skipping %s — unresolved body site", pre_co)
         return None
 
     return {
@@ -165,13 +171,21 @@ def decompose_concept(
 
 # ── Concept map builder ───────────────────────────────────────────────────────
 
-def build_concept_map(config: dict) -> list[dict]:
+def build_concept_map(valueset_url: str) -> list[dict]:
     """
-    Expand the configured valueset, decompose every concept, and return
+    Expand the given valueset, decompose every concept, and return
     a list of fully-resolved entry dicts (all four axes + preferred terms).
+
+    Assumes fetcher.baseurl has already been pointed at the desired
+    terminology server by the caller.
     """
-    logger.info("Expanding valueset: %s", config["valueset_url"])
-    vs_data = fetcher.get_valueset(config["valueset_url"])
+    # Caches are keyed only by SNOMED code, not by terminology server — clear them
+    # so a build against a different server doesn't reuse another server's terms.
+    _term_cache.clear()
+    _split_site_cache.clear()
+
+    logger.info("Expanding valueset: %s", valueset_url)
+    vs_data = fetcher.get_valueset(valueset_url)
 
     codes: list[str] = evaluate(vs_data, "expansion.contains.code")
     displays: list[str] = evaluate(vs_data, "expansion.contains.display")
@@ -221,7 +235,7 @@ def build_concept_map(config: dict) -> list[dict]:
             "bodysite_code":   axes["bodysite"],
             "bodysite_term":   get_preferred_term(axes["bodysite"]),
             "laterality_code": axes["laterality"],
-            "laterality_term": get_preferred_term(axes["laterality"]),
+            "laterality_term": get_preferred_term(axes["laterality"]) if axes["laterality"] else "Not applicable",
             "contrast_code":   axes["contrast"],
             "contrast_term":   get_preferred_term(axes["contrast"]),
         })
@@ -232,50 +246,59 @@ def build_concept_map(config: dict) -> list[dict]:
 
 # ── Cache load / save ─────────────────────────────────────────────────────────
 
-def _save_cache(entries: list[dict], config: dict) -> None:
-    cache_file = config.get("cache_file", "concept_map_cache.json")
+def _cache_path(config: dict, valueset_id: str, server_id: str) -> str:
+    cache_dir = config.get("cache_dir", "cache")
+    return os.path.join(cache_dir, f"{valueset_id}__{server_id}.json")
+
+
+def _save_cache(entries: list[dict], config: dict, valueset_id: str, server_id: str) -> dict:
+    cache_dir = config.get("cache_dir", "cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = _cache_path(config, valueset_id, server_id)
     payload = {
         "built_at": datetime.now(timezone.utc).isoformat(),
-        "valueset_url": config.get("valueset_url", ""),
+        "valueset_id": valueset_id,
+        "terminology_server_id": server_id,
         "entries": entries,
     }
     with open(cache_file, "w") as fh:
         json.dump(payload, fh, indent=2)
     logger.info("Concept map cache written to %s", cache_file)
+    return payload
 
 
-def _load_cache(config: dict) -> list[dict] | None:
-    cache_file = config.get("cache_file", "concept_map_cache.json")
+def _load_cache(config: dict, valueset_id: str, server_id: str) -> dict | None:
+    cache_file = _cache_path(config, valueset_id, server_id)
     if not os.path.exists(cache_file):
         return None
     try:
         with open(cache_file, "r") as fh:
             payload = json.load(fh)
-        entries = payload.get("entries", [])
-        built_at = payload.get("built_at", "unknown")
         logger.info(
             "Loaded concept map from cache (%s): %d entries (built %s)",
-            cache_file, len(entries), built_at,
+            cache_file, len(payload.get("entries", [])), payload.get("built_at", "unknown"),
         )
-        return entries
+        return payload
     except Exception as exc:
-        logger.warning("Cache load failed (%s) — will rebuild: %s", cache_file, exc)
+        logger.warning("Cache load failed (%s): %s", cache_file, exc)
         return None
 
 
-def load_or_build_map(config: dict) -> list[dict]:
+def load_cached_map(config: dict, valueset_id: str, server_id: str) -> dict | None:
     """
-    Return the concept map entries, loading from disk cache if available,
-    otherwise building from the terminology server and saving to cache.
+    Return the cached payload ({built_at, entries, ...}) for this combo, or None
+    if no cache exists yet. Never builds — safe to call at startup or per-request.
     """
-    if config.get("cache_enabled", True):
-        cached = _load_cache(config)
-        if cached is not None:
-            return cached
+    if not config.get("cache_enabled", True):
+        return None
+    return _load_cache(config, valueset_id, server_id)
 
-    entries = build_concept_map(config)
 
-    if config.get("cache_enabled", True):
-        _save_cache(entries, config)
-
-    return entries
+def refresh_map(config: dict, valueset_id: str, server_id: str) -> dict:
+    """
+    Build this combo's concept map from the terminology server and overwrite its
+    cache file. Assumes fetcher.baseurl already points at the desired server.
+    """
+    valueset = find_valueset(config, valueset_id)
+    entries = build_concept_map(valueset["url"])
+    return _save_cache(entries, config, valueset_id, server_id)

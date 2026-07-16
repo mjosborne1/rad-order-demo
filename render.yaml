@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: rad-order-demo
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: CONFIG_FILE
+        value: config.yaml

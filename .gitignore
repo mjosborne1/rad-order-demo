@@ -7,8 +7,5 @@ __pycache__/
 .venv/
 venv/
 
-# Generated / cache
-concept_map_cache.json
-
 # OS
 .DS_Store
